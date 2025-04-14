@@ -1,0 +1,13 @@
+{
+  "name": "secure-messaging-backend",
+  "description": "A secure messaging backend using Node.js and Express",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0"
+  }
+}

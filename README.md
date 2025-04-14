@@ -1,94 +1,217 @@
-# 🔐 Secure Messaging API - Backend Coding Challenge
+# Secure Messaging Backend
 
-This challenge is designed to test your backend skills in API design,
-encryption, debugging, and secure data handling. You are expected to
-think critically, solve problems creatively, and structure your solution
-with best coding practices. You may use either **Express (Node.js)** or
-**Flask (Python)**.
+A robust and secure messaging backend built with Node.js, Express, and ES6+ syntax. This project implements encrypted message storage and retrieval using AES-256-GCM, ensuring confidentiality and integrity. Features include user-specific message encryption, secure key derivation, message expiry, and a debug endpoint for decryption testing.
 
-## ⏱ Time Limit
+## Table of Contents
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Setup Instructions](#setup-instructions)
+- [Running the Project](#running-the-project)
+- [Testing with Postman](#testing-with-postman)
+- [Design Decisions](#design-decisions)
+- [Assumptions](#assumptions)
+- [Security Considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
 
-**1 Hour** --- Please manage your time accordingly.
+## Features
+- **Encrypted Messaging**: Store and retrieve messages encrypted with AES-256-GCM.
+- **User Isolation**: Messages are accessible only to the original user via user-specific keys.
+- **Message Expiry**: Messages auto-delete after 10 minutes (bonus feature).
+- **Debug Endpoint**: Test decryption with a dedicated endpoint.
+- **Secure Key Derivation**: Uses HKDF to generate unique keys per user.
+- **Error Handling**: Meaningful responses for invalid inputs and failures.
 
-## 🎯 Objective
+## Project Structure
+```
+secure-messaging-backend/
+├── src/
+│   ├── crypto.js           # Encryption and decryption logic
+│   ├── db.js              # In-memory database with expiry
+│   ├── server.js          # Express server with API endpoints
+│   ├── debug_code.js      # Original broken decryption function
+│   └── debug_fixed.js     # Fixed decryption with test cases
+├── package.json            # Project dependencies and scripts
+├── .env                    # Environment variables
+└── README.md               # Project documentation
+```
 
-Build a secure messaging backend with three main features:
+## Setup Instructions
 
-1.  Store encrypted messages per user using secure encryption.
-2.  Allow only the original user to decrypt and retrieve messages.
-3.  Debug a broken decryption function and explain your fix.
+### Prerequisites
+- **Node.js**: v18 or higher ([download](https://nodejs.org/))
+- **npm**: Included with Node.js
+- **Postman**: Optional, for API testing ([download](https://www.postman.com/downloads/))
 
-## 📦 Required Endpoints
+### Installation
+1. **Clone the Repository**:
+   ```bash
+   git clone <repository-url>
+   cd secure-messaging-backend
+   ```
 
-### 1. POST /messages
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
 
-Store a message for a user. Encrypt it using AES before storage.
+3. **Configure Environment**:
+   - Create a `.env` file in the project root:
+     ```env
+     SERVER_SECRET=your-32-byte-secret
+     PORT=3000
+     ```
+   - Generate a secure secret:
+     ```bash
+     openssl rand -hex 32
+     ```
+   - Use the output as `SERVER_SECRET`.
 
-### 2. GET /messages/:userId
+## Running the Project
+1. **Start the Server**:
+   ```bash
+   npm start
+   ```
+   - The server runs on `http://localhost:3000` (or the port specified in `.env`).
 
-Retrieve all messages for the specified user (after decryption).
+2. **Verify**:
+   - Open `http://localhost:3000` in a browser (returns 404, confirming the server is up).
+   - Proceed to test endpoints with Postman or curl.
 
-### 3. POST /debug/decrypt
+## Testing with Postman
 
-Debug and fix the broken decryption logic provided in the file
-`debug_code.py` or `debug_code.js`.
+### Setup
+- Create a new Postman collection: "Secure Messaging Backend".
+- Set a variable: `baseUrl = http://localhost:3000`.
 
-## 🔐 Encryption Rules
+### Endpoints
+1. **POST /messages**
+   - **Purpose**: Store an encrypted message.
+   - **Request**:
+     - Method: POST
+     - URL: `{{baseUrl}}/messages`
+     - Body (JSON):
+       ```json
+       {
+         "userId": "test-user",
+         "message": "Hello, World!"
+       }
+       ```
+   - **Expected Response**:
+     - Status: `201 Created`
+     - Body:
+       ```json
+       {
+         "status": "Message stored successfully"
+       }
+       ```
+   - **Test Cases**:
+     - Missing `userId` or `message`: Expect `400 Bad Request`.
 
--   Use **AES (AES-256)** encryption only.
--   like `pycryptodome` or `crypto-js`.
--   Use only:
-    -   `crypto` module in Node.js
-    -   `cryptography` or built-in `hashlib + hmac` in Python
--   IV must be random per message and embedded in the encrypted payload
-    so it can be extracted and reused for decryption.
--   Return encrypted values in `base64` format.
+2. **GET /messages/:userId**
+   - **Purpose**: Retrieve decrypted messages for a user.
+   - **Request**:
+     - Method: GET
+     - URL: `{{baseUrl}}/messages/test-user`
+   - **Expected Response**:
+     - Status: `200 OK`
+     - Body:
+       ```json
+       [
+         {
+           "id": "<uuid>",
+           "message": "Hello, World!",
+           "timestamp": 1739467890123
+         }
+       ]
+       ```
+   - **Test Cases**:
+     - Non-existent `userId`: Expect `200 OK` with `[]`.
+     - Multiple messages: Verify all are returned.
 
-## 🧠 Required Design Write-Up
+3. **POST /debug/decrypt**
+   - **Purpose**: Test decryption logic.
+   - **Request**:
+     - Method: POST
+     - URL: `{{baseUrl}}/debug/decrypt`
+     - Body (JSON):
+       ```json
+       {
+         "userId": "test-user",
+         "encrypted": "<base64-encrypted-string>"
+       }
+       ```
+     - Note: Obtain `encrypted` by logging database content (modify `db.js` temporarily) or generating manually.
+   - **Expected Response**:
+     - Status: `200 OK`
+     - Body:
+       ```json
+       {
+         "decrypted": "Hello, World!"
+       }
+       ```
+   - **Test Cases**:
+     - Invalid `encrypted`: Expect `500 Internal Server Error`.
+     - Wrong `userId`: Expect decryption failure.
 
-Include this in your README or code comments before implementation:
+4. **Message Expiry** (Bonus)
+   - Send `POST /messages`, wait >10 minutes (or adjust `TEN_MINUTES` in `db.js` to `10 * 1000` for 10 seconds).
+   - Send `GET /messages/test-user`.
+   - Expect: `[]` if messages expired.
 
-1.  What encryption method and mode did you choose, and why?
-2.  How will you ensure only the original user can access their
-    messages?
-3.  How do you plan to store and later extract the IV?
-4.  How would you prevent user ID spoofing to access other users\'
-    messages?
+## Design Decisions
 
-## 🐞 Debug Task
+### What encryption method and mode did you choose, and why?
+- **Choice**: AES-256 in GCM mode.
+- **Reason**:
+  - **Security**: AES-256 is a widely trusted standard with a large key size, resistant to brute-force attacks.
+  - **GCM Mode**: Provides authenticated encryption, ensuring both confidentiality and integrity, protecting against tampering.
+  - **Efficiency**: Hardware-accelerated and suitable for variable-length messages.
+  - **Standards**: Aligns with NIST recommendations for secure communication.
 
-Inside the file `debug_code.py` or `debug_code.js` is a broken function
-`broken_decrypt()`.
+### How will you ensure only the original user can access their messages?
+- **Key Derivation**: HKDF generates a unique 256-bit key per user, using `userId` and a server-side secret. Only the correct `userId` produces the right key for decryption.
+- **Database Isolation**: Messages are stored in a `Map` keyed by `userId`, ensuring queries only access the user’s own data.
+- **Future Authentication**: JWT-based authentication (partially implemented) would verify user identity before processing requests.
+- **Error Handling**: Decryption fails gracefully if the wrong key is used, preventing unauthorized access.
 
-You must:
+### How do you plan to store and later extract the IV?
+- **Storage**: A random 12-byte IV is generated per message and prepended to the ciphertext, followed by a 16-byte authentication tag. The combined payload (IV + ciphertext + authTag) is base64-encoded.
+- **Extraction**: During decryption, the payload is decoded, and the first 12 bytes are taken as the IV, the last 16 bytes as the authTag, and the remainder as the ciphertext.
+- **Benefit**: Embedding the IV simplifies storage and ensures it’s available for decryption without a separate database field.
 
--   Identify and fix the issue.
--   Write a test case that reproduces the problem.
--   Comment your fix explaining what went wrong and why your fix works.
+### How would you prevent user ID spoofing to access other users' messages?
+- **Authentication**: Planned JWT middleware (bonus) to verify user identity against `userId`.
+- **Input Sanitization**: Validate `userId` to prevent injection or invalid formats.
+- **Access Control**: Database queries are scoped to the provided `userId`, preventing cross-user access.
+- **Key Security**: HKDF-derived keys depend on `userId`; a spoofed ID generates a wrong key, failing decryption.
+- **Transport Security**: HTTPS (assumed in production) prevents interception of `userId`.
 
-## ✅ Evaluation Criteria
+## Assumptions
+- **Database**: In-memory `Map` for simplicity; production would use a persistent store like MongoDB or PostgreSQL.
+- **Secret Management**: `SERVER_SECRET` in `.env`; production would use a secrets manager (e.g., AWS Secrets Manager).
+- **Environment**: Single server instance; scaling would require distributed key handling.
+- **Transport**: Local testing uses HTTP; production requires HTTPS.
+- **Rate Limiting**: Not implemented; production would add it for DoS protection.
 
--   Correct and working encryption/decryption logic
--   Clean, readable, and modular code structure
--   Secure handling of message data and per-user access
--   Thoughtful answers to the design questions
--   Successful debugging with clear explanation
--   Edge case handling and meaningful error responses
+## Security Considerations
+- **Encryption**: AES-256-GCM ensures strong protection; keys are never stored.
+- **Key Rotation**: `SERVER_SECRET` should be rotated periodically in production.
+- **Auditing**: Add logging for access attempts in production.
+- **Dependencies**: Regularly update `express` and `dotenv` for security patches.
+- **Backup**: In-memory DB is volatile; production needs persistent storage.
 
-## 🚀 Bonus (Optional)
+## Troubleshooting
+- **Server Fails to Start**:
+  - Check `.env` exists and `SERVER_SECRET` is set.
+  - Verify port `3000` is free (`lsof -i :3000`).
+- **Decryption Errors**:
+  - Ensure `userId` matches the one used for encryption.
+  - Validate `encrypted` string format (base64, correct length).
+- **Postman Issues**:
+  - Confirm JSON body syntax.
+  - Check `baseUrl` variable.
+- **Expiry Not Working**:
+  - Adjust `TEN_MINUTES` in `db.js` for faster testing.
+  - Ensure `cleanupExpired` is called (runs on `GET`).
 
--   Implement message expiry (auto-delete after 10 minutes)
--   Add basic token-based authentication
--   Write unit tests for encryption, storage, and retrieval
-
-## 📥 Submission
-
--   Submit your full project folder via zip or GitHub repository.
--   Include a `README.md` with:
-    -   Instructions to run the project
-    -   Your answers to the design questions
-    -   Any assumptions or constraints you considered
-
-**Reminder:** Write professional-grade, clean, and thoughtful code.
-Structure your project clearly and keep logic modular. We\'ll be
-reviewing both code and reasoning.
+For further assistance, review logs in `server.js` or contact the developer.
